@@ -5,6 +5,7 @@ final class PanelController {
     private var panel: FloatingPanel?
     private let service = TranslationService()
     private var clickMonitor: Any?
+    private var sizeObservation: NSKeyValueObservation?
 
     func toggle() {
         if let panel, panel.isVisible {
@@ -76,7 +77,33 @@ final class PanelController {
         newPanel.onTabPressed = { [weak self] in
             self?.service.acceptGhostText()
         }
+
+        // KVO-observe intrinsic size changes to dynamically resize the panel
+        sizeObservation = hostingView.observe(\.intrinsicContentSize, options: [.new]) { [weak self] view, _ in
+            DispatchQueue.main.async {
+                self?.adjustPanelSize()
+            }
+        }
+
         self.panel = newPanel
         return newPanel
+    }
+
+    private func adjustPanelSize() {
+        guard let panel, panel.isVisible else { return }
+        guard let contentView = panel.contentView else { return }
+
+        let fittingSize = contentView.fittingSize
+        let panelWidth: CGFloat = 680
+        let maxHeight: CGFloat = (NSScreen.main?.visibleFrame.height ?? 800) * 0.5
+        let newHeight = min(max(fittingSize.height, 60), maxHeight)
+
+        let oldFrame = panel.frame
+        // Pin top edge: in AppKit y=0 is bottom, so adjust origin.y
+        let topEdge = oldFrame.origin.y + oldFrame.size.height
+        let newY = topEdge - newHeight
+
+        let newFrame = NSRect(x: oldFrame.origin.x, y: newY, width: panelWidth, height: newHeight)
+        panel.animator().setFrame(newFrame, display: true)
     }
 }
