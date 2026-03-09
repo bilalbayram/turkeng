@@ -144,11 +144,32 @@ final class TranslationService {
             let response = try JSONDecoder().decode(MyMemoryResponse.self, from: data)
             translatedText = response.responseData.translatedText
 
-            // Process matches
+            // Process matches — filter by source segment similarity
             let rawMatches = response.matches ?? []
+            let inputLower = text.lowercased()
+
+            // Filter out self-translations and require segment relevance
+            let relevant: [MyMemoryResponse.MatchEntry]
+            let exactSegment = rawMatches.filter { entry in
+                let seg = entry.segment.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+                let trans = entry.translation.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+                return seg == inputLower && trans != seg
+            }
+            if !exactSegment.isEmpty {
+                relevant = exactSegment
+            } else {
+                // Fallback: high-score matches that aren't self-translations
+                let highScore = rawMatches.filter { entry in
+                    let trans = entry.translation.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+                    let seg = entry.segment.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+                    return entry.matchScore >= 0.85 && trans != seg
+                }
+                relevant = highScore
+            }
+
             var deduped: [String: TranslationMatch] = [:]
 
-            for m in rawMatches {
+            for m in relevant {
                 let trimmed = m.translation.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !trimmed.isEmpty else { continue }
                 let key = trimmed.lowercased()
@@ -204,6 +225,7 @@ private struct MyMemoryResponse: Decodable {
 
     struct MatchEntry: Decodable {
         let id: String
+        let segment: String // source text from the translation memory
         let translation: String
         let matchScore: Double
 
@@ -223,6 +245,7 @@ private struct MyMemoryResponse: Decodable {
                 id = UUID().uuidString
             }
 
+            segment = try container.decodeIfPresent(String.self, forKey: .segment) ?? ""
             translation = try container.decode(String.self, forKey: .translation)
 
             // match is a Double 0.0–1.0
