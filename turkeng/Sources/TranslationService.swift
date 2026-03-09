@@ -88,21 +88,59 @@ final class TranslationService {
 
     // MARK: - Ghost Text Autocomplete
 
+    private static let seedWords: [String] = [
+        // Common Turkish words/phrases
+        "merhaba", "günaydın", "iyi akşamlar", "iyi geceler", "hoşgeldiniz",
+        "teşekkürler", "teşekkür ederim", "nasılsın", "nasıl gidiyor",
+        "evet", "hayır", "lütfen", "özür dilerim", "affedersiniz",
+        "güzel", "güle güle", "görüşürüz", "arkadaş", "aile",
+        "sevgi", "mutlu", "üzgün", "büyük", "küçük",
+        "yeni", "eski", "güneş", "yağmur", "kar",
+        "su", "yemek", "kahvaltı", "öğle yemeği", "akşam yemeği",
+        "çay", "kahve", "ekmek", "peynir", "zeytin",
+        "okul", "kitap", "öğrenci", "öğretmen", "çalışmak",
+        "başlamak", "bitirmek", "anlamak", "bilmek", "istemek",
+        "gelmek", "gitmek", "yapmak", "vermek", "almak",
+        "bugün", "yarın", "dün", "şimdi", "sonra",
+        // Common English words/phrases
+        "hello", "good morning", "good evening", "good night", "welcome",
+        "thank you", "thanks", "how are you", "how is it going",
+        "yes", "no", "please", "sorry", "excuse me",
+        "beautiful", "goodbye", "see you", "friend", "family",
+        "love", "happy", "sad", "big", "small",
+        "new", "old", "sun", "rain", "snow",
+        "water", "food", "breakfast", "lunch", "dinner",
+        "tea", "coffee", "bread", "cheese", "olive",
+        "school", "book", "student", "teacher", "work",
+        "start", "finish", "understand", "know", "want",
+        "come", "go", "make", "give", "take",
+        "today", "tomorrow", "yesterday", "now", "later",
+    ]
+
     func computeGhostText() -> String {
         let input = inputText
         guard !input.isEmpty else { return "" }
 
         let normalizedInput = turkishASCIINormalize(input).lowercased()
 
-        // Search history in reverse (most recent first)
+        // 1. Search history in reverse (most recent first) — personalized
         for entry in queryHistory.reversed() {
             let normalizedEntry = turkishASCIINormalize(entry).lowercased()
             if normalizedEntry.hasPrefix(normalizedInput) && entry.count > input.count {
-                // Return the suffix from the original entry (with diacritics)
                 let suffixStart = entry.index(entry.startIndex, offsetBy: input.count)
                 return String(entry[suffixStart...])
             }
         }
+
+        // 2. Search seed dictionary — works on first launch
+        for entry in Self.seedWords {
+            let normalizedEntry = turkishASCIINormalize(entry).lowercased()
+            if normalizedEntry.hasPrefix(normalizedInput) && entry.count > input.count {
+                let suffixStart = entry.index(entry.startIndex, offsetBy: input.count)
+                return String(entry[suffixStart...])
+            }
+        }
+
         return ""
     }
 

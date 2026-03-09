@@ -21,7 +21,7 @@ struct TranslationPanelView: View {
                             .opacity(0) // invisible spacer matching input width
                         Text(service.computeGhostText())
                             .font(.system(size: 20, weight: .light))
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(.secondary.opacity(0.5))
                     }
                     .allowsHitTesting(false)
 
