@@ -7,7 +7,7 @@ let project = Project(
             name: "turkeng",
             destinations: .macOS,
             product: .app,
-            bundleId: "dev.tuist.turkeng",
+            bundleId: "com.bilalbayram.turkeng",
             deploymentTargets: .macOS("14.0"),
             infoPlist: .extendingDefault(with: [
                 "LSUIElement": .boolean(true),
@@ -19,7 +19,13 @@ let project = Project(
             entitlements: .file(path: "turkeng/turkeng.entitlements"),
             dependencies: [
                 .external(name: "HotKey"),
-            ]
+            ],
+            settings: .settings(base: [
+                "DEVELOPMENT_TEAM": "3N28465E96",
+                "CODE_SIGN_STYLE": "Manual",
+                "CODE_SIGN_IDENTITY": "Developer ID Application",
+                "ENABLE_HARDENED_RUNTIME": "YES",
+            ])
         ),
         .target(
             name: "turkengTests",
