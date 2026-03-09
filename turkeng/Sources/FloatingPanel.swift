@@ -2,6 +2,8 @@ import AppKit
 
 final class FloatingPanel: NSPanel {
 
+    var onTabPressed: (() -> Void)?
+
     init(contentRect: NSRect, content: NSView) {
         super.init(
             contentRect: contentRect,
@@ -38,6 +40,14 @@ final class FloatingPanel: NSPanel {
 
     override func cancelOperation(_ sender: Any?) {
         orderOut(nil)
+    }
+
+    override func keyDown(with event: NSEvent) {
+        if event.keyCode == 48 { // TAB
+            onTabPressed?()
+            return
+        }
+        super.keyDown(with: event)
     }
 
     // resignKey intentionally NOT overridden — the Translation framework's

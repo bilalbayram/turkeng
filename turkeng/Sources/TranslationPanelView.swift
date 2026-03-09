@@ -13,16 +13,29 @@ struct TranslationPanelView: View {
                     .font(.system(size: 20, weight: .light))
                     .foregroundStyle(.secondary)
 
-                TextField("Translate Turkish ↔ English…", text: $service.inputText)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 20, weight: .light))
-                    .focused($isInputFocused)
-                    .onChange(of: service.inputText) {
-                        service.onInputChanged()
+                ZStack(alignment: .leading) {
+                    // Ghost text overlay
+                    HStack(spacing: 0) {
+                        Text(service.inputText)
+                            .font(.system(size: 20, weight: .light))
+                            .opacity(0) // invisible spacer matching input width
+                        Text(service.computeGhostText())
+                            .font(.system(size: 20, weight: .light))
+                            .foregroundStyle(.tertiary)
                     }
-                    .onSubmit {
-                        performCopy()
-                    }
+                    .allowsHitTesting(false)
+
+                    TextField("Translate Turkish ↔ English…", text: $service.inputText)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 20, weight: .light))
+                        .focused($isInputFocused)
+                        .onChange(of: service.inputText) {
+                            service.onInputChanged()
+                        }
+                        .onSubmit {
+                            performCopy()
+                        }
+                }
 
                 if !service.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     languageBadge
