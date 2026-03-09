@@ -8,7 +8,7 @@ struct TurkengTests {
     func inputChangeClearsVisibleMatchesWhileTranslating() {
         let service = TranslationService()
         service.matches = [
-            TranslationMatch(id: "1", translation: "eski sonuc", matchScore: 1.0)
+            TranslationMatch(id: "1", translation: "eski sonuc", matchScore: 1.0, contextHint: nil, isPrimary: true)
         ]
         service.selectedIndex = 0
         service.translatedText = "old result"

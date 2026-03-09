@@ -1,11 +1,14 @@
 import AppKit
 import Foundation
 import NaturalLanguage
+import Translation
 
 struct TranslationMatch: Identifiable, Equatable {
     let id: String
     let translation: String
     let matchScore: Double // 0.0–1.0
+    let contextHint: String? // "Noun", "Verb", "Adjective", etc.
+    let isPrimary: Bool // true = Apple Translation result
 }
 
 @Observable
@@ -17,10 +20,18 @@ final class TranslationService {
     var selectedIndex: Int = 0
     private(set) var queryHistory: [String] = []
 
+    // Apple Translation integration
+    var translationConfig: TranslationSession.Configuration?
+    var pendingTranslationText: String?
+
     private var debounceTask: Task<Void, Never>?
+    private var myMemoryTask: Task<Void, Never>?
+    private var appleResult: TranslationMatch?
+    private var myMemoryResults: [TranslationMatch]?
 
     func onInputChanged() {
         debounceTask?.cancel()
+        myMemoryTask?.cancel()
 
         let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
@@ -28,6 +39,9 @@ final class TranslationService {
             matches = []
             selectedIndex = 0
             isTranslating = false
+            appleResult = nil
+            myMemoryResults = nil
+            pendingTranslationText = nil
             return
         }
 
@@ -46,12 +60,15 @@ final class TranslationService {
 
     func reset() {
         debounceTask?.cancel()
+        myMemoryTask?.cancel()
         inputText = ""
         translatedText = ""
         matches = []
         selectedIndex = 0
         isTranslating = false
-        // queryHistory persists across show/hide
+        appleResult = nil
+        myMemoryResults = nil
+        pendingTranslationText = nil
     }
 
     /// Detects whether input is Turkish and returns the langpair string for MyMemory.
@@ -65,6 +82,43 @@ final class TranslationService {
         } else {
             return "en|tr"
         }
+    }
+
+    /// Detects source/target as `Locale.Language` for Apple Translation.
+    private func detectLanguages(for text: String) -> (source: Locale.Language, target: Locale.Language) {
+        let recognizer = NLLanguageRecognizer()
+        recognizer.processString(text)
+        let detected = recognizer.dominantLanguage
+
+        if detected == .turkish {
+            return (source: Locale.Language(identifier: "tr"), target: Locale.Language(identifier: "en"))
+        } else {
+            return (source: Locale.Language(identifier: "en"), target: Locale.Language(identifier: "tr"))
+        }
+    }
+
+    // MARK: - POS Tagging
+
+    private func partOfSpeech(for text: String, language: NLLanguage) -> String? {
+        let words = text.split(separator: " ")
+        guard words.count <= 3 else { return nil } // skip long phrases
+
+        let tagger = NLTagger(tagSchemes: [.lexicalClass])
+        tagger.string = text
+        tagger.setLanguage(language, range: text.startIndex..<text.endIndex)
+
+        var result: String?
+        tagger.enumerateTags(in: text.startIndex..<text.endIndex, unit: .word, scheme: .lexicalClass) { tag, _ in
+            guard let tag else { return true }
+            switch tag {
+            case .noun: result = "Noun"; return false
+            case .verb: result = "Verb"; return false
+            case .adjective: result = "Adjective"; return false
+            case .adverb: result = "Adverb"; return false
+            default: return true // skip determiners, punctuation, etc.
+            }
+        }
+        return result
     }
 
     // MARK: - Navigation
@@ -167,31 +221,145 @@ final class TranslationService {
         return String(s.map { map[$0] ?? $0 })
     }
 
-    // MARK: - Translation
+    // MARK: - Translation Orchestration
 
     @MainActor
     private func translate(_ text: String) async {
+        let langs = detectLanguages(for: text)
+        let backend = AppSettings.shared.backend
+
+        // Reset intermediate state
+        appleResult = nil
+        myMemoryResults = nil
+        pendingTranslationText = nil
+
+        // 1. Apple Translation (if enabled and installed)
+        if backend != .myMemoryOnly {
+            let availability = LanguageAvailability()
+            let status = await availability.status(from: langs.source, to: langs.target)
+
+            if status == .installed {
+                pendingTranslationText = text
+                if translationConfig?.source == langs.source,
+                   translationConfig?.target == langs.target {
+                    translationConfig?.invalidate()
+                } else {
+                    translationConfig = .init(source: langs.source, target: langs.target)
+                }
+            }
+        }
+
+        // 2. MyMemory (if enabled)
+        if backend != .appleOnly {
+            myMemoryTask?.cancel()
+            myMemoryTask = Task { @MainActor in
+                let results = await fetchMyMemoryAlternatives(text: text)
+                guard !Task.isCancelled else { return }
+                myMemoryResults = results
+                mergeResults()
+            }
+        } else {
+            myMemoryResults = []
+        }
+
+        // Append to query history (avoid consecutive duplicates)
+        if queryHistory.last != text {
+            queryHistory.append(text)
+        }
+    }
+
+    // MARK: - Apple Translation Callbacks
+
+    @MainActor
+    func handleAppleResult(_ targetText: String, for text: String) {
+        guard pendingTranslationText == text else { return } // stale result
+
+        let recognizer = NLLanguageRecognizer()
+        recognizer.processString(text)
+        let sourceLang = recognizer.dominantLanguage ?? .english
+        let hint = partOfSpeech(for: targetText, language: sourceLang == .turkish ? .english : .turkish)
+
+        appleResult = TranslationMatch(
+            id: "apple-primary",
+            translation: targetText,
+            matchScore: 1.0,
+            contextHint: hint,
+            isPrimary: true
+        )
+        translatedText = targetText
+        pendingTranslationText = nil
+        mergeResults()
+    }
+
+    @MainActor
+    func handleAppleFailure() {
+        appleResult = nil
+        pendingTranslationText = nil
+        mergeResults()
+    }
+
+    // MARK: - Result Merging
+
+    @MainActor
+    private func mergeResults() {
+        var merged: [TranslationMatch] = []
+
+        // Apple result always first
+        if let apple = appleResult {
+            merged.append(apple)
+        }
+
+        // Append MyMemory alternatives, excluding duplicates of Apple's result
+        if let mmResults = myMemoryResults {
+            let appleTranslationLower = appleResult?.translation.lowercased()
+            for m in mmResults {
+                if let appleLower = appleTranslationLower,
+                   m.translation.lowercased() == appleLower {
+                    continue // skip duplicate
+                }
+                merged.append(m)
+            }
+        }
+
+        // If both sources completed with nothing, show failure
+        let appleFinished = appleResult != nil || pendingTranslationText == nil
+        let mmFinished = myMemoryResults != nil
+        if merged.isEmpty && appleFinished && mmFinished {
+            translatedText = "Translation failed"
+        }
+
+        matches = merged
+        selectedIndex = 0
+
+        // Mark loading done once we have at least one result or both sources finished
+        if !merged.isEmpty || (appleFinished && mmFinished) {
+            isTranslating = false
+        }
+    }
+
+    // MARK: - MyMemory Alternatives
+
+    @MainActor
+    private func fetchMyMemoryAlternatives(text: String) async -> [TranslationMatch] {
         let langPair = detectLangPair(for: text)
 
-        guard var components = URLComponents(string: "https://api.mymemory.translated.net/get") else { return }
+        guard var components = URLComponents(string: "https://api.mymemory.translated.net/get") else { return [] }
         components.queryItems = [
             URLQueryItem(name: "q", value: text),
             URLQueryItem(name: "langpair", value: langPair),
         ]
-        guard let url = components.url else { return }
+        guard let url = components.url else { return [] }
 
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled else { return [] }
 
             let response = try JSONDecoder().decode(MyMemoryResponse.self, from: data)
-            translatedText = response.responseData.translatedText
 
             // Process matches — filter by source segment similarity
             let rawMatches = response.matches ?? []
             let inputLower = text.lowercased()
 
-            // Filter out self-translations and require segment relevance
             let relevant: [MyMemoryResponse.MatchEntry]
             let exactSegment = rawMatches.filter { entry in
                 let seg = entry.segment.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
@@ -201,7 +369,6 @@ final class TranslationService {
             if !exactSegment.isEmpty {
                 relevant = exactSegment
             } else {
-                // Fallback: high-score matches that aren't self-translations
                 let highScore = rawMatches.filter { entry in
                     let trans = entry.translation.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
                     let seg = entry.segment.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
@@ -209,6 +376,12 @@ final class TranslationService {
                 }
                 relevant = highScore
             }
+
+            // Detect source language for POS tagging on target text
+            let recognizer = NLLanguageRecognizer()
+            recognizer.processString(text)
+            let sourceLang = recognizer.dominantLanguage ?? .english
+            let targetLang: NLLanguage = sourceLang == .turkish ? .english : .turkish
 
             var deduped: [String: TranslationMatch] = [:]
 
@@ -218,41 +391,27 @@ final class TranslationService {
                 let key = trimmed.lowercased()
                 if let existing = deduped[key] {
                     if m.matchScore > existing.matchScore {
-                        deduped[key] = TranslationMatch(id: m.id, translation: trimmed, matchScore: m.matchScore)
+                        let hint = partOfSpeech(for: trimmed, language: targetLang)
+                        deduped[key] = TranslationMatch(
+                            id: m.id, translation: trimmed, matchScore: m.matchScore,
+                            contextHint: hint, isPrimary: false
+                        )
                     }
                 } else {
-                    deduped[key] = TranslationMatch(id: m.id, translation: trimmed, matchScore: m.matchScore)
+                    let hint = partOfSpeech(for: trimmed, language: targetLang)
+                    deduped[key] = TranslationMatch(
+                        id: m.id, translation: trimmed, matchScore: m.matchScore,
+                        contextHint: hint, isPrimary: false
+                    )
                 }
             }
 
             var sorted = deduped.values.sorted { $0.matchScore > $1.matchScore }
-            sorted = Array(sorted.prefix(5))
-
-            // Fallback: if no matches but we have a translated text, create synthetic match
-            if sorted.isEmpty && !response.responseData.translatedText.isEmpty {
-                sorted = [TranslationMatch(
-                    id: "synthetic-0",
-                    translation: response.responseData.translatedText,
-                    matchScore: 1.0
-                )]
-            }
-
-            matches = sorted
-            selectedIndex = 0
-
-            // Append to query history (avoid consecutive duplicates)
-            if queryHistory.last != text {
-                queryHistory.append(text)
-            }
+            sorted = Array(sorted.prefix(3))
+            return sorted
         } catch {
-            if !Task.isCancelled {
-                translatedText = "Translation failed"
-                matches = []
-                selectedIndex = 0
-            }
+            return []
         }
-
-        isTranslating = false
     }
 }
 

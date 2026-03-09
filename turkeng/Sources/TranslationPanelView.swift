@@ -1,4 +1,5 @@
 import SwiftUI
+import Translation
 
 struct TranslationPanelView: View {
     @Bindable var service: TranslationService
@@ -83,6 +84,19 @@ struct TranslationPanelView: View {
             service.selectPrevious()
             return .handled
         }
+        .translationTask(service.translationConfig) { session in
+            guard let text = service.pendingTranslationText else { return }
+            do {
+                let response = try await session.translate(text)
+                await MainActor.run {
+                    service.handleAppleResult(response.targetText, for: text)
+                }
+            } catch {
+                await MainActor.run {
+                    service.handleAppleFailure()
+                }
+            }
+        }
         .onAppear {
             isInputFocused = true
         }
@@ -129,6 +143,15 @@ private struct ResultRow: View {
                 .font(.system(size: 18))
                 .lineLimit(2)
 
+            if let hint = match.contextHint {
+                Text(hint)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(.quaternary, in: Capsule())
+            }
+
             Spacer()
 
             if isCopied {
@@ -142,7 +165,9 @@ private struct ResultRow: View {
                     .foregroundStyle(.secondary)
             }
 
-            scoreBadge
+            if !match.isPrimary {
+                scoreBadge
+            }
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 10)

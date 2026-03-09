@@ -8,7 +8,7 @@ let project = Project(
             destinations: .macOS,
             product: .app,
             bundleId: "com.bilalbayram.turkeng",
-            deploymentTargets: .macOS("14.0"),
+            deploymentTargets: .macOS("15.0"),
             infoPlist: .extendingDefault(with: [
                 "LSUIElement": .boolean(true),
             ]),
@@ -30,7 +30,7 @@ let project = Project(
             destinations: .macOS,
             product: .unitTests,
             bundleId: "dev.tuist.turkengTests",
-            deploymentTargets: .macOS("14.0"),
+            deploymentTargets: .macOS("15.0"),
             infoPlist: .default,
             buildableFolders: [
                 "turkeng/Tests"
