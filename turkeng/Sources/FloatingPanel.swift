@@ -2,7 +2,8 @@ import AppKit
 
 final class FloatingPanel: NSPanel {
 
-    var onTabPressed: (() -> Void)?
+    /// Returns `true` when ghost text was accepted, `false` if nothing to accept.
+    var onAcceptGhostText: (() -> Bool)?
 
     init(contentRect: NSRect, content: NSView) {
         super.init(
@@ -42,12 +43,22 @@ final class FloatingPanel: NSPanel {
         orderOut(nil)
     }
 
-    override func keyDown(with event: NSEvent) {
-        if event.keyCode == 48 { // TAB
-            onTabPressed?()
-            return
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .keyDown {
+            // TAB — always accept ghost text if available
+            if event.keyCode == 48 {
+                if onAcceptGhostText?() == true { return }
+            }
+            // Right arrow — accept ghost text only when cursor is at end of text
+            if event.keyCode == 124 {
+                if let editor = firstResponder as? NSTextView,
+                   editor.selectedRange.location == editor.string.count,
+                   onAcceptGhostText?() == true {
+                    return
+                }
+            }
         }
-        super.keyDown(with: event)
+        super.sendEvent(event)
     }
 
     // resignKey intentionally NOT overridden — the Translation framework's

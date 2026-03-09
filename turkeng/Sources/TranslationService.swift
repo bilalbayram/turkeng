@@ -144,11 +144,13 @@ final class TranslationService {
         return ""
     }
 
-    func acceptGhostText() {
+    @discardableResult
+    func acceptGhostText() -> Bool {
         let ghost = computeGhostText()
-        guard !ghost.isEmpty else { return }
+        guard !ghost.isEmpty else { return false }
         inputText += ghost
         onInputChanged()
+        return true
     }
 
     // MARK: - Turkish ASCII Normalization

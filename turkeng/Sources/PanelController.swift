@@ -74,8 +74,8 @@ final class PanelController {
 
         let rect = NSRect(x: 0, y: 0, width: 680, height: 60)
         let newPanel = FloatingPanel(contentRect: rect, content: visualEffect)
-        newPanel.onTabPressed = { [weak self] in
-            self?.service.acceptGhostText()
+        newPanel.onAcceptGhostText = { [weak self] in
+            self?.service.acceptGhostText() ?? false
         }
 
         // KVO-observe intrinsic size changes to dynamically resize the panel
