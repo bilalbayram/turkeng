@@ -1,10 +1,27 @@
 import Testing
-@testable import Turkeng
+@testable import turkeng
 
 struct TurkengTests {
 
-    @Test func example() async throws {
-        // Write your test here and use APIs like `#expect(...)` to check expected conditions.
+    @Test
+    @MainActor
+    func inputChangeClearsVisibleMatchesWhileTranslating() {
+        let service = TranslationService()
+        service.matches = [
+            TranslationMatch(id: "1", translation: "eski sonuc", matchScore: 1.0)
+        ]
+        service.selectedIndex = 0
+        service.translatedText = "old result"
+        service.inputText = "new query"
+
+        service.onInputChanged()
+
+        #expect(service.isTranslating)
+        #expect(service.matches.isEmpty)
+        #expect(service.selectedIndex == 0)
+        #expect(service.translatedText.isEmpty)
+
+        service.reset()
     }
 
 }

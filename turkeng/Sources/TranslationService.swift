@@ -31,6 +31,9 @@ final class TranslationService {
             return
         }
 
+        translatedText = ""
+        matches = []
+        selectedIndex = 0
         isTranslating = true
 
         debounceTask = Task { @MainActor in
