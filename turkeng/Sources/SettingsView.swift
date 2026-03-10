@@ -53,7 +53,24 @@ struct SettingsView: View {
             } header: {
                 Text("Translation Backend")
             } footer: {
-                Text("Apple Translation runs on-device with high quality. MyMemory is a crowdsourced translation memory that provides alternatives. Using both gives the best results.")
+                Text("Apple Translation runs on-device with high quality. MyMemory provides crowdsourced alternatives. Google Translate uses your own API key and adds a network-backed machine translation option.")
+            }
+
+            if settings.backend.includesGoogle {
+                Section {
+                    SecureField("API key", text: $settings.googleAPIKey)
+                        .textFieldStyle(.roundedBorder)
+
+                    if settings.googleAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Label("Google Translate requires an API key.", systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+                } header: {
+                    Text("Google Translate")
+                } footer: {
+                    Text("Create a Cloud Translation API key in Google Cloud Console and paste it here. The key is stored locally on this Mac.")
+                }
             }
 
             // MARK: - Apple Translation Languages
@@ -89,7 +106,8 @@ struct SettingsView: View {
         .task {
             await refreshStatus()
         }
-        .frame(width: 460, height: 420)
+        .frame(width: 460)
+        .frame(minHeight: 420)
     }
 
     // MARK: - Subviews

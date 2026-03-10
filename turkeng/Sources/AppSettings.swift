@@ -4,6 +4,8 @@ enum TranslationBackend: String, CaseIterable, Identifiable {
     case appleAndMyMemory = "appleAndMyMemory"
     case appleOnly = "appleOnly"
     case myMemoryOnly = "myMemoryOnly"
+    case appleAndGoogle = "appleAndGoogle"
+    case googleOnly = "googleOnly"
 
     var id: String { rawValue }
 
@@ -12,6 +14,35 @@ enum TranslationBackend: String, CaseIterable, Identifiable {
         case .appleAndMyMemory: "Apple Translation + MyMemory"
         case .appleOnly: "Apple Translation only"
         case .myMemoryOnly: "MyMemory only"
+        case .appleAndGoogle: "Apple Translation + Google Translate"
+        case .googleOnly: "Google Translate only"
+        }
+    }
+
+    var includesApple: Bool {
+        switch self {
+        case .appleAndMyMemory, .appleOnly, .appleAndGoogle:
+            true
+        case .myMemoryOnly, .googleOnly:
+            false
+        }
+    }
+
+    var includesGoogle: Bool {
+        switch self {
+        case .appleAndGoogle, .googleOnly:
+            true
+        case .appleAndMyMemory, .appleOnly, .myMemoryOnly:
+            false
+        }
+    }
+
+    var includesMyMemory: Bool {
+        switch self {
+        case .appleAndMyMemory, .myMemoryOnly:
+            true
+        case .appleOnly, .appleAndGoogle, .googleOnly:
+            false
         }
     }
 }
@@ -67,6 +98,10 @@ final class AppSettings {
         didSet { UserDefaults.standard.set(hotkeyLetter.rawValue, forKey: "hotkeyLetter") }
     }
 
+    var googleAPIKey: String {
+        didSet { UserDefaults.standard.set(googleAPIKey, forKey: "googleAPIKey") }
+    }
+
     private init() {
         let backendRaw = UserDefaults.standard.string(forKey: "backend") ?? TranslationBackend.appleAndMyMemory.rawValue
         self.backend = TranslationBackend(rawValue: backendRaw) ?? .appleAndMyMemory
@@ -76,5 +111,7 @@ final class AppSettings {
 
         let letterRaw = UserDefaults.standard.string(forKey: "hotkeyLetter") ?? HotkeyLetter.t.rawValue
         self.hotkeyLetter = HotkeyLetter(rawValue: letterRaw) ?? .t
+
+        self.googleAPIKey = UserDefaults.standard.string(forKey: "googleAPIKey") ?? ""
     }
 }

@@ -3,49 +3,40 @@ import Translation
 
 struct TranslationPanelView: View {
     @Bindable var service: TranslationService
-    @FocusState private var isInputFocused: Bool
+    @FocusState private var focusedField: FocusTarget?
     @State private var copiedIndex: Int?
+    @State private var expandedMode = false
+
+    private enum FocusTarget: Hashable {
+        case shortInput
+        case longInput
+    }
+
+    private var isLongInput: Bool {
+        service.inputText.count > 50 || service.inputText.contains("\n")
+    }
+
+    private var hasInput: Bool {
+        !service.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
 
     var body: some View {
         VStack(spacing: 0) {
-            // Search row
-            HStack(spacing: 12) {
+            HStack(alignment: expandedMode ? .top : .center, spacing: 12) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 20, weight: .light))
                     .foregroundStyle(.secondary)
+                    .padding(.top, expandedMode ? 4 : 0)
 
-                ZStack(alignment: .leading) {
-                    // Ghost text overlay
-                    HStack(spacing: 0) {
-                        Text(service.inputText)
-                            .font(.system(size: 20, weight: .light))
-                            .opacity(0) // invisible spacer matching input width
-                        Text(service.computeGhostText())
-                            .font(.system(size: 20, weight: .light))
-                            .foregroundStyle(.secondary.opacity(0.5))
-                    }
-                    .allowsHitTesting(false)
+                inputView
 
-                    TextField("Translate Turkish ↔ English…", text: $service.inputText)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 20, weight: .light))
-                        .focused($isInputFocused)
-                        .onChange(of: service.inputText) {
-                            service.onInputChanged()
-                        }
-                        .onSubmit {
-                            performCopy()
-                        }
-                }
-
-                if !service.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                if hasInput {
                     languageBadge
                 }
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 16)
 
-            // Results area
             if !service.matches.isEmpty || service.isTranslating {
                 Divider()
                     .padding(.horizontal, 16)
@@ -68,7 +59,8 @@ struct TranslationPanelView: View {
                             ResultRow(
                                 match: match,
                                 isSelected: index == service.selectedIndex,
-                                isCopied: copiedIndex == index
+                                isCopied: copiedIndex == index,
+                                expandedMode: expandedMode
                             )
                         }
                     }
@@ -97,13 +89,63 @@ struct TranslationPanelView: View {
                 }
             }
         }
+        .onChange(of: service.inputText) {
+            if !expandedMode && isLongInput {
+                expandedMode = true
+            }
+            service.onInputChanged()
+        }
+        .onChange(of: expandedMode) {
+            focusedField = expandedMode ? .longInput : .shortInput
+        }
         .onAppear {
-            isInputFocused = true
+            expandedMode = false
+            focusedField = .shortInput
+        }
+    }
+
+    @ViewBuilder
+    private var inputView: some View {
+        if expandedMode {
+            TextEditor(text: $service.inputText)
+                .font(.system(size: 18, weight: .light))
+                .scrollContentBackground(.hidden)
+                .frame(maxWidth: .infinity, minHeight: 60, maxHeight: 120)
+                .focused($focusedField, equals: .longInput)
+                .onAppear {
+                    focusedField = .longInput
+                }
+                .onKeyPress(phases: [.down]) { keyPress in
+                    guard keyPress.key == .return else { return .ignored }
+                    guard keyPress.modifiers.isEmpty else { return .ignored }
+                    performCopy()
+                    return .handled
+                }
+        } else {
+            ZStack(alignment: .leading) {
+                HStack(spacing: 0) {
+                    Text(service.inputText)
+                        .font(.system(size: 20, weight: .light))
+                        .opacity(0)
+                    Text(service.computeGhostText())
+                        .font(.system(size: 20, weight: .light))
+                        .foregroundStyle(.secondary.opacity(0.5))
+                }
+                .allowsHitTesting(false)
+
+                TextField("Translate Turkish ↔ English…", text: $service.inputText)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 20, weight: .light))
+                    .focused($focusedField, equals: .shortInput)
+                    .onSubmit {
+                        performCopy()
+                    }
+            }
         }
     }
 
     private func performCopy() {
-        guard let _ = service.copySelected() else { return }
+        guard service.copySelected() != nil else { return }
         let idx = service.selectedIndex
         withAnimation(.easeInOut(duration: 0.15)) {
             copiedIndex = idx
@@ -130,18 +172,17 @@ struct TranslationPanelView: View {
     }
 }
 
-// MARK: - Result Row
-
 private struct ResultRow: View {
     let match: TranslationMatch
     let isSelected: Bool
     let isCopied: Bool
+    let expandedMode: Bool
 
     var body: some View {
         HStack(spacing: 8) {
             Text(match.translation)
                 .font(.system(size: 18))
-                .lineLimit(2)
+                .lineLimit(expandedMode ? 6 : 2)
 
             if let hint = match.contextHint {
                 Text(hint)

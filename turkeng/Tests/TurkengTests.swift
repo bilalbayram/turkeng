@@ -24,4 +24,28 @@ struct TurkengTests {
         service.reset()
     }
 
+    @Test
+    func shortInputStillShowsGhostText() {
+        let service = TranslationService()
+        service.inputText = "merh"
+
+        #expect(service.computeGhostText() == "aba")
+    }
+
+    @Test
+    func longInputDisablesGhostText() {
+        let service = TranslationService()
+        service.inputText = String(repeating: "a", count: 51)
+
+        #expect(service.computeGhostText().isEmpty)
+    }
+
+    @Test
+    func multilineInputDisablesGhostText() {
+        let service = TranslationService()
+        service.inputText = "merhaba\nnasilsin"
+
+        #expect(service.computeGhostText().isEmpty)
+    }
+
 }
