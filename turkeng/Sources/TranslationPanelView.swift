@@ -6,6 +6,7 @@ struct TranslationPanelView: View {
     @FocusState private var focusedField: FocusTarget?
     @State private var copiedIndex: Int?
     @State private var expandedMode = false
+    @State private var gearHovered = false
 
     private enum FocusTarget: Hashable {
         case shortInput
@@ -33,6 +34,9 @@ struct TranslationPanelView: View {
                 if hasInput {
                     languageBadge
                 }
+
+                settingsGear
+                    .padding(.top, expandedMode ? 4 : 0)
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 16)
@@ -168,6 +172,18 @@ struct TranslationPanelView: View {
                 }
             }
         }
+    }
+
+    private var settingsGear: some View {
+        SettingsLink {
+            Image(systemName: "gearshape")
+                .font(.system(size: 14, weight: .light))
+                .foregroundStyle(gearHovered ? .primary : .secondary)
+                .frame(width: 24, height: 24)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { gearHovered = $0 }
     }
 
     private var languageBadge: some View {

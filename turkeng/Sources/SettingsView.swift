@@ -73,6 +73,15 @@ struct SettingsView: View {
                 }
             }
 
+            // MARK: - Menu Bar
+            Section {
+                Toggle("Show menu bar icon", isOn: $settings.showMenuBarIcon)
+            } header: {
+                Text("Menu Bar")
+            } footer: {
+                Text("When hidden, use the gear icon in the translation panel or \u{2318}, to access settings.")
+            }
+
             // MARK: - Apple Translation Languages
             Section {
                 HStack {

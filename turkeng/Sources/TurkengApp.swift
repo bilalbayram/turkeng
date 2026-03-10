@@ -3,10 +3,10 @@ import SwiftUI
 @main
 struct TurkengApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    private var settings = AppSettings.shared
+    @Bindable private var settings = AppSettings.shared
 
     var body: some Scene {
-        MenuBarExtra("turkeng", systemImage: "character.book.closed") {
+        MenuBarExtra("turkeng", systemImage: "character.book.closed", isInserted: $settings.showMenuBarIcon) {
             Button("Translate (\(settings.hotkeyModifier.symbol)\(settings.hotkeyLetter.label))") {
                 appDelegate.togglePanel()
             }

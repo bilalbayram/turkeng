@@ -102,6 +102,10 @@ final class AppSettings {
         didSet { UserDefaults.standard.set(googleAPIKey, forKey: "googleAPIKey") }
     }
 
+    var showMenuBarIcon: Bool {
+        didSet { UserDefaults.standard.set(showMenuBarIcon, forKey: "showMenuBarIcon") }
+    }
+
     private init() {
         let backendRaw = UserDefaults.standard.string(forKey: "backend") ?? TranslationBackend.appleAndMyMemory.rawValue
         self.backend = TranslationBackend(rawValue: backendRaw) ?? .appleAndMyMemory
@@ -113,5 +117,6 @@ final class AppSettings {
         self.hotkeyLetter = HotkeyLetter(rawValue: letterRaw) ?? .t
 
         self.googleAPIKey = UserDefaults.standard.string(forKey: "googleAPIKey") ?? ""
+        self.showMenuBarIcon = UserDefaults.standard.object(forKey: "showMenuBarIcon") as? Bool ?? true
     }
 }

@@ -45,6 +45,11 @@ final class FloatingPanel: NSPanel {
 
     override func sendEvent(_ event: NSEvent) {
         if event.type == .keyDown {
+            // ⌘, — open Settings
+            if event.modifierFlags.contains(.command), event.charactersIgnoringModifiers == "," {
+                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                return
+            }
             // TAB — always accept ghost text if available
             if event.keyCode == 48 {
                 if onAcceptGhostText?() == true { return }
