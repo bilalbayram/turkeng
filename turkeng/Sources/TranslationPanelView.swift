@@ -70,7 +70,7 @@ struct TranslationPanelView: View {
                             }
                         }
                     }
-                    .frame(maxHeight: 400)
+                    .frame(minHeight: expandedMode ? 120 : 0, maxHeight: expandedMode ? 600 : 400)
                 }
             }
         }
@@ -190,41 +190,61 @@ private struct ResultRow: View {
     let expandedMode: Bool
 
     var body: some View {
-        HStack(spacing: 8) {
-            Text(match.translation)
-                .font(.system(size: 18))
-                .lineLimit(expandedMode ? nil : 2)
+        Group {
+            if expandedMode {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(match.translation)
+                        .font(.system(size: 18))
+                        .fixedSize(horizontal: false, vertical: true)
 
-            if let hint = match.contextHint {
-                Text(hint)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(.quaternary, in: Capsule())
-            }
+                    HStack(spacing: 8) {
+                        if let hint = match.contextHint { hintBadge(hint) }
+                        Spacer()
+                        if isCopied { copiedIcon }
+                        else if isSelected { copyLabel }
+                        if !match.isPrimary { scoreBadge }
+                    }
+                }
+            } else {
+                HStack(spacing: 8) {
+                    Text(match.translation)
+                        .font(.system(size: 18))
+                        .lineLimit(2)
 
-            Spacer()
-
-            if isCopied {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-                    .font(.system(size: 14))
-                    .transition(.scale.combined(with: .opacity))
-            } else if isSelected {
-                Text("↵ copy")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
-            }
-
-            if !match.isPrimary {
-                scoreBadge
+                    if let hint = match.contextHint { hintBadge(hint) }
+                    Spacer()
+                    if isCopied { copiedIcon }
+                    else if isSelected { copyLabel }
+                    if !match.isPrimary { scoreBadge }
+                }
             }
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 10)
         .background(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
         .contentShape(Rectangle())
+    }
+
+    private func hintBadge(_ hint: String) -> some View {
+        Text(hint)
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(.quaternary, in: Capsule())
+    }
+
+    private var copiedIcon: some View {
+        Image(systemName: "checkmark.circle.fill")
+            .foregroundStyle(.green)
+            .font(.system(size: 14))
+            .transition(.scale.combined(with: .opacity))
+    }
+
+    private var copyLabel: some View {
+        Text("↵ copy")
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(.secondary)
     }
 
     private var scoreBadge: some View {

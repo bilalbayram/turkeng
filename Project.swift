@@ -11,6 +11,7 @@ let project = Project(
             deploymentTargets: .macOS("15.0"),
             infoPlist: .extendingDefault(with: [
                 "LSUIElement": .boolean(true),
+                "CFBundleShortVersionString": .string("$(MARKETING_VERSION)"),
             ]),
             buildableFolders: [
                 "turkeng/Sources",

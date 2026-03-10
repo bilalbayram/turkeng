@@ -5,6 +5,9 @@ VERSION="${1:?Usage: scripts/release.sh <version>  (e.g. 1.1.0)}"
 TAG="v${VERSION}"
 DMG="turkeng-${VERSION}.dmg"
 
+echo "==> Updating version in Project.swift"
+sed -i '' "s/\"MARKETING_VERSION\": \".*\"/\"MARKETING_VERSION\": \"${VERSION}\"/" Project.swift
+
 echo "==> Building turkeng ${TAG}"
 tuist install && tuist generate
 
