@@ -70,6 +70,7 @@ struct TranslationPanelView: View {
                             }
                         }
                     }
+                    .frame(maxHeight: 400)
                 }
             }
         }
@@ -98,8 +99,10 @@ struct TranslationPanelView: View {
             }
         }
         .onChange(of: service.inputText) {
-            if !expandedMode && isLongInput {
+            if isLongInput && !expandedMode {
                 expandedMode = true
+            } else if !isLongInput && expandedMode {
+                expandedMode = false
             }
             service.onInputChanged()
         }
