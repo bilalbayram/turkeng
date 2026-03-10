@@ -11,6 +11,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panelController = PanelController()
         registerHotKey()
         observeSettings()
+
+        Task { await UpdateChecker.shared.checkOnLaunchIfNeeded() }
     }
 
     func togglePanel() {

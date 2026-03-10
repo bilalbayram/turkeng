@@ -16,6 +16,8 @@ xcodebuild -workspace turkeng.xcworkspace -scheme turkeng \
   ENABLE_HARDENED_RUNTIME=YES \
   CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO \
   OTHER_CODE_SIGN_FLAGS="--timestamp" \
+  MARKETING_VERSION="${VERSION}" \
+  CURRENT_PROJECT_VERSION="${VERSION}" \
   clean build
 
 echo "==> Notarizing app"

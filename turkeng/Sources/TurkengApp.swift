@@ -14,7 +14,12 @@ struct TurkengApp: App {
             SettingsLink {
                 Text("Settings…")
             }
+            Button("Check for Updates…") {
+                Task { await UpdateChecker.shared.checkForUpdates() }
+            }
             Divider()
+            Text("Version \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?")")
+                .foregroundStyle(.secondary)
             Button("Quit turkeng") {
                 NSApp.terminate(nil)
             }
