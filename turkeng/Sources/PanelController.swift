@@ -95,7 +95,7 @@ final class PanelController {
 
         let fittingSize = contentView.fittingSize
         let panelWidth: CGFloat = 680
-        let maxHeight: CGFloat = (NSScreen.main?.visibleFrame.height ?? 800) * 0.5
+        let maxHeight: CGFloat = (NSScreen.main?.visibleFrame.height ?? 800) * 0.85
         let newHeight = min(max(fittingSize.height, 60), maxHeight)
 
         let oldFrame = panel.frame

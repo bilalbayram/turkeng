@@ -54,14 +54,20 @@ struct TranslationPanelView: View {
                     .padding(.horizontal, 20)
                     .padding(.vertical, 14)
                 } else {
-                    VStack(spacing: 0) {
-                        ForEach(Array(service.matches.enumerated()), id: \.element.id) { index, match in
-                            ResultRow(
-                                match: match,
-                                isSelected: index == service.selectedIndex,
-                                isCopied: copiedIndex == index,
-                                expandedMode: expandedMode
-                            )
+                    ScrollView {
+                        VStack(spacing: 0) {
+                            ForEach(Array(service.matches.enumerated()), id: \.element.id) { index, match in
+                                ResultRow(
+                                    match: match,
+                                    isSelected: index == service.selectedIndex,
+                                    isCopied: copiedIndex == index,
+                                    expandedMode: expandedMode
+                                )
+                                .onTapGesture {
+                                    service.selectedIndex = index
+                                    performCopy()
+                                }
+                            }
                         }
                     }
                 }
@@ -69,10 +75,12 @@ struct TranslationPanelView: View {
         }
         .frame(width: 680)
         .onKeyPress(.downArrow) {
+            if expandedMode { return .ignored }
             service.selectNext()
             return .handled
         }
         .onKeyPress(.upArrow) {
+            if expandedMode { return .ignored }
             service.selectPrevious()
             return .handled
         }
@@ -110,7 +118,7 @@ struct TranslationPanelView: View {
             TextEditor(text: $service.inputText)
                 .font(.system(size: 18, weight: .light))
                 .scrollContentBackground(.hidden)
-                .frame(maxWidth: .infinity, minHeight: 60, maxHeight: 120)
+                .frame(maxWidth: .infinity, minHeight: 60, maxHeight: 300)
                 .focused($focusedField, equals: .longInput)
                 .onAppear {
                     focusedField = .longInput
@@ -182,7 +190,7 @@ private struct ResultRow: View {
         HStack(spacing: 8) {
             Text(match.translation)
                 .font(.system(size: 18))
-                .lineLimit(expandedMode ? 6 : 2)
+                .lineLimit(expandedMode ? nil : 2)
 
             if let hint = match.contextHint {
                 Text(hint)
