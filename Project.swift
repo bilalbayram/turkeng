@@ -24,7 +24,7 @@ let project = Project(
             settings: .settings(base: [
                 "CODE_SIGN_IDENTITY": "-",
                 "ENABLE_HARDENED_RUNTIME": "YES",
-                "MARKETING_VERSION": "1.3.0",
+                "MARKETING_VERSION": "1.3.1",
             ])
         ),
         .target(
