@@ -3,7 +3,7 @@ import NaturalLanguage
 
 protocol ServiceTranslationBackend {
     var backendId: String { get }
-    func translate(text: String, langPair: String, targetLanguage: NLLanguage) async -> [TranslationMatch]
+    func translate(text: String, direction: TranslationDirection) async -> [TranslationMatch]
 }
 
 func partOfSpeech(for text: String, language: NLLanguage) -> String? {

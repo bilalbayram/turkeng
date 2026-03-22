@@ -79,6 +79,12 @@ struct TranslationPanelView: View {
             }
         }
         .frame(width: 680)
+        .onKeyPress(phases: [.down]) { keyPress in
+            guard keyPress.modifiers.contains(.command) else { return .ignored }
+            guard keyPress.characters.lowercased() == "r" else { return .ignored }
+            service.toggleReverseDirection()
+            return .handled
+        }
         .onKeyPress(.downArrow) {
             if expandedMode { return .ignored }
             service.selectNext()
@@ -186,16 +192,16 @@ struct TranslationPanelView: View {
         .onHover { gearHovered = $0 }
     }
 
+    @ViewBuilder
     private var languageBadge: some View {
-        let trimmed = service.inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let langPair = service.detectLangPair(for: trimmed)
-        let directionText = langPair == "tr|en" ? "TR → EN" : "EN → TR"
-        return Text(directionText)
-            .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(.quaternary, in: Capsule())
+        if let direction = service.currentDirection {
+            Text(direction.badgeLabel)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(.quaternary, in: Capsule())
+        }
     }
 }
 

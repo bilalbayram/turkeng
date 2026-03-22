@@ -18,6 +18,8 @@ final class TranslationService {
     var isTranslating: Bool = false
     var matches: [TranslationMatch] = []
     var selectedIndex: Int = 0
+    var currentDirection: TranslationDirection?
+    var isDirectionReversed = false
     private(set) var queryHistory: [String] = []
 
     // Apple Translation integration
@@ -41,6 +43,8 @@ final class TranslationService {
             matches = []
             selectedIndex = 0
             isTranslating = false
+            currentDirection = nil
+            isDirectionReversed = false
             appleResult = nil
             serviceBackendResults = [:]
             activeServiceBackendIds = []
@@ -49,10 +53,8 @@ final class TranslationService {
             return
         }
 
-        translatedText = ""
-        matches = []
-        selectedIndex = 0
-        isTranslating = true
+        currentDirection = previewDirection(for: trimmed)
+        prepareForNewTranslation()
 
         debounceTask = Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(300))
@@ -70,6 +72,8 @@ final class TranslationService {
         matches = []
         selectedIndex = 0
         isTranslating = false
+        currentDirection = nil
+        isDirectionReversed = false
         appleResult = nil
         serviceBackendResults = [:]
         activeServiceBackendIds = []
@@ -77,29 +81,37 @@ final class TranslationService {
         pendingTranslationText = nil
     }
 
-    /// Detects whether input is Turkish and returns the langpair string for service backends.
-    func detectLangPair(for text: String) -> String {
+    func detectLocalDirection(for text: String) -> TranslationDirection {
         let recognizer = NLLanguageRecognizer()
         recognizer.processString(text)
         let detected = recognizer.dominantLanguage
 
         if detected == .turkish {
-            return "tr|en"
+            return .turkishToEnglish
         } else {
-            return "en|tr"
+            return .englishToTurkish
         }
     }
 
-    /// Detects source/target as `Locale.Language` for Apple Translation.
-    private func detectLanguages(for text: String) -> (source: Locale.Language, target: Locale.Language) {
-        let recognizer = NLLanguageRecognizer()
-        recognizer.processString(text)
-        let detected = recognizer.dominantLanguage
+    func previewDirection(for text: String) -> TranslationDirection? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        return applyReverseOverride(to: detectLocalDirection(for: trimmed))
+    }
 
-        if detected == .turkish {
-            return (source: Locale.Language(identifier: "tr"), target: Locale.Language(identifier: "en"))
-        } else {
-            return (source: Locale.Language(identifier: "en"), target: Locale.Language(identifier: "tr"))
+    func toggleReverseDirection() {
+        let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        debounceTask?.cancel()
+        cancelServiceBackendTasks()
+
+        isDirectionReversed.toggle()
+        currentDirection = previewDirection(for: trimmed)
+        prepareForNewTranslation()
+
+        debounceTask = Task { @MainActor in
+            await translate(trimmed)
         }
     }
 
@@ -208,41 +220,48 @@ final class TranslationService {
 
     @MainActor
     private func translate(_ text: String) async {
-        let langs = detectLanguages(for: text)
         let backend = AppSettings.shared.backend
-        let langPair = detectLangPair(for: text)
-        let targetLanguage = targetLanguage(for: text)
         let serviceBackends = activeServiceBackends(for: backend)
 
         cancelServiceBackendTasks()
         appleResult = nil
         serviceBackendResults = [:]
-        activeServiceBackendIds = serviceBackends.map(\.backendId)
         currentRequestText = text
         pendingTranslationText = nil
 
+        let direction = await resolveDirection(for: text, backend: backend)
+        guard !Task.isCancelled else { return }
+        guard currentRequestText == text else { return }
+
+        currentDirection = direction
+        activeServiceBackendIds = serviceBackends.map(\.backendId)
+
         if backend.includesApple {
             let availability = LanguageAvailability()
-            let status = await availability.status(from: langs.source, to: langs.target)
+            let status = await availability.status(
+                from: direction.sourceLocaleLanguage,
+                to: direction.targetLocaleLanguage
+            )
+            guard !Task.isCancelled else { return }
+            guard currentRequestText == text else { return }
 
             if status == .installed {
                 pendingTranslationText = text
-                if translationConfig?.source == langs.source,
-                   translationConfig?.target == langs.target {
+                if translationConfig?.source == direction.sourceLocaleLanguage,
+                   translationConfig?.target == direction.targetLocaleLanguage {
                     translationConfig?.invalidate()
                 } else {
-                    translationConfig = .init(source: langs.source, target: langs.target)
+                    translationConfig = .init(
+                        source: direction.sourceLocaleLanguage,
+                        target: direction.targetLocaleLanguage
+                    )
                 }
             }
         }
 
         for serviceBackend in serviceBackends {
             let task = Task { @MainActor in
-                let results = await serviceBackend.translate(
-                    text: text,
-                    langPair: langPair,
-                    targetLanguage: targetLanguage
-                )
+                let results = await serviceBackend.translate(text: text, direction: direction)
                 guard !Task.isCancelled else { return }
                 guard currentRequestText == text else { return }
                 serviceBackendResults[serviceBackend.backendId] = results
@@ -268,7 +287,10 @@ final class TranslationService {
             id: "apple-primary",
             translation: targetText,
             matchScore: 1.0,
-            contextHint: partOfSpeech(for: targetText, language: targetLanguage(for: text)),
+            contextHint: partOfSpeech(
+                for: targetText,
+                language: currentDirection?.targetNLLanguage ?? previewDirection(for: text)?.targetNLLanguage ?? .turkish
+            ),
             isPrimary: true
         )
         translatedText = targetText
@@ -330,6 +352,18 @@ final class TranslationService {
         serviceBackendTasks.removeAll()
     }
 
+    private func prepareForNewTranslation() {
+        translatedText = ""
+        matches = []
+        selectedIndex = 0
+        isTranslating = true
+        appleResult = nil
+        serviceBackendResults = [:]
+        activeServiceBackendIds = []
+        currentRequestText = nil
+        pendingTranslationText = nil
+    }
+
     private func activeServiceBackends(for backend: TranslationBackend) -> [any ServiceTranslationBackend] {
         var backends: [any ServiceTranslationBackend] = []
         if backend.includesMyMemory {
@@ -341,7 +375,22 @@ final class TranslationService {
         return backends
     }
 
-    private func targetLanguage(for text: String) -> NLLanguage {
-        detectLangPair(for: text) == "tr|en" ? .english : .turkish
+    private func applyReverseOverride(to direction: TranslationDirection) -> TranslationDirection {
+        isDirectionReversed ? direction.reversed() : direction
+    }
+
+    private func resolveDirection(for text: String, backend: TranslationBackend) async -> TranslationDirection {
+        let fallback = applyReverseOverride(to: detectLocalDirection(for: text))
+        currentDirection = fallback
+
+        guard backend.includesGoogle else { return fallback }
+
+        let googleBackend = GoogleTranslateBackend()
+        guard let detected = await googleBackend.detectDirection(for: text) else {
+            return fallback
+        }
+
+        guard !Task.isCancelled else { return fallback }
+        return applyReverseOverride(to: detected)
     }
 }

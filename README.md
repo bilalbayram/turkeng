@@ -10,11 +10,13 @@ A macOS menu bar app for instant Turkish ↔ English translation — with ghost 
 
 turkeng lives in your menu bar and gives you a fast, keyboard-driven translation panel. Hit **⌥T** from anywhere, type your text, and get translations instantly — no browser tabs, no copy-pasting between apps.
 
-**Auto Language Detection** — Uses Apple's NaturalLanguage framework to detect whether you're typing Turkish or English and sets the translation direction automatically.
+**Auto Language Detection** — Uses Google Cloud Translation language detection when a Google-backed engine is active with an API key configured; otherwise falls back to Apple's NaturalLanguage framework.
 
 **Ghost Text Autocomplete** — As you type, translucent suggestions appear based on your query history and a seed dictionary of common phrases. Press **Tab** or **→** to accept.
 
 **Multiple Matches** — Returns up to 5 translation matches from MyMemory translation memory, ranked by confidence score. Navigate with **↑↓** and hit **Enter** to copy.
+
+**Reverse Direction** — Press **⌘R** in the panel to flip the translation direction for the current input and rerun the query immediately.
 
 **Google Translate Support** — Optionally use Google Cloud Translation as a backend (requires your own API key). Can be combined with other engines or used standalone.
 

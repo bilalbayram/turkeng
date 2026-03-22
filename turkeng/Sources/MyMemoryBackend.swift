@@ -3,69 +3,98 @@ import NaturalLanguage
 
 struct MyMemoryBackend: ServiceTranslationBackend {
     let backendId = "myMemory"
+    private static let maxMatches = 5
+    private static let fallbackThreshold = 0.85
 
-    func translate(text: String, langPair: String, targetLanguage: NLLanguage) async -> [TranslationMatch] {
+    func translate(text: String, direction: TranslationDirection) async -> [TranslationMatch] {
         guard var components = URLComponents(string: "https://api.mymemory.translated.net/get") else { return [] }
         components.queryItems = [
             URLQueryItem(name: "q", value: text),
-            URLQueryItem(name: "langpair", value: langPair),
+            URLQueryItem(name: "langpair", value: direction.langPair),
         ]
         guard let url = components.url else { return [] }
 
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
             guard !Task.isCancelled else { return [] }
-
-            let response = try JSONDecoder().decode(MyMemoryResponse.self, from: data)
-            let rawMatches = response.matches ?? []
-            let inputLower = text.lowercased()
-
-            let relevant: [MyMemoryResponse.MatchEntry]
-            let exactSegment = rawMatches.filter { entry in
-                let segment = entry.segment.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-                let translation = entry.translation.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-                return segment == inputLower && translation != segment
-            }
-            if !exactSegment.isEmpty {
-                relevant = exactSegment
-            } else {
-                relevant = rawMatches.filter { entry in
-                    let translation = entry.translation.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-                    let segment = entry.segment.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-                    return entry.matchScore >= 0.85 && translation != segment
-                }
-            }
-
-            var deduped: [String: TranslationMatch] = [:]
-
-            for match in relevant {
-                let trimmed = match.translation.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !trimmed.isEmpty else { continue }
-
-                let key = trimmed.lowercased()
-                let candidate = TranslationMatch(
-                    id: match.id,
-                    translation: trimmed,
-                    matchScore: match.matchScore,
-                    contextHint: partOfSpeech(for: trimmed, language: targetLanguage),
-                    isPrimary: false
-                )
-
-                if let existing = deduped[key], existing.matchScore >= candidate.matchScore {
-                    continue
-                }
-
-                deduped[key] = candidate
-            }
-
-            return Array(deduped.values.sorted { $0.matchScore > $1.matchScore }.prefix(3))
+            return try Self.matches(from: data, inputText: text, targetLanguage: direction.targetNLLanguage)
         } catch {
             return []
         }
     }
+
+    static func matches(from data: Data, inputText: String, targetLanguage: NLLanguage) throws -> [TranslationMatch] {
+        let response = try JSONDecoder().decode(MyMemoryResponse.self, from: data)
+        let rawMatches = response.matches ?? []
+        let inputLower = inputText.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let exactMatches = rawMatches
+            .filter { entry in
+                normalizedText(entry.segment) == inputLower &&
+                normalizedText(entry.translation) != normalizedText(entry.segment)
+            }
+            .sorted { $0.matchScore > $1.matchScore }
+
+        let fallbackMatches = rawMatches
+            .filter { entry in
+                normalizedText(entry.translation) != normalizedText(entry.segment) &&
+                entry.matchScore >= Self.fallbackThreshold
+            }
+            .sorted { $0.matchScore > $1.matchScore }
+
+        return dedupeAndRank(
+            exactMatches: exactMatches,
+            fallbackMatches: fallbackMatches,
+            targetLanguage: targetLanguage
+        )
+    }
+
+    private static func dedupeAndRank(
+        exactMatches: [MyMemoryResponse.MatchEntry],
+        fallbackMatches: [MyMemoryResponse.MatchEntry],
+        targetLanguage: NLLanguage
+    ) -> [TranslationMatch] {
+        var results: [TranslationMatch] = []
+        var seenTranslations = Set<String>()
+
+        func append(_ entry: MyMemoryResponse.MatchEntry) {
+            guard results.count < Self.maxMatches else { return }
+
+            let trimmedTranslation = entry.translation.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalizedTranslation = normalizedText(trimmedTranslation)
+            guard !normalizedTranslation.isEmpty else { return }
+            guard seenTranslations.insert(normalizedTranslation).inserted else { return }
+
+            results.append(
+                TranslationMatch(
+                    id: entry.id,
+                    translation: trimmedTranslation,
+                    matchScore: entry.matchScore,
+                    contextHint: partOfSpeech(for: trimmedTranslation, language: targetLanguage),
+                    isPrimary: false
+                )
+            )
+        }
+
+        for entry in exactMatches {
+            append(entry)
+        }
+
+        for entry in fallbackMatches {
+            append(entry)
+        }
+
+        return results
+    }
+
+    private static func normalizedText(_ text: String) -> String {
+        text
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+    }
 }
 
-private struct MyMemoryResponse: Decodable {
+struct MyMemoryResponse: Decodable {
     let responseData: ResponseData
     let matches: [MatchEntry]?
 
