@@ -2,11 +2,33 @@ import SwiftUI
 import Translation
 
 struct SettingsView: View {
-    @Bindable private var settings = AppSettings.shared
-    @State private var trEnInstalled = false
-    @State private var enTrInstalled = false
+    private struct LanguagePack {
+        let title: String
+        let sourceLanguage: Locale.Language
+        let targetLanguage: Locale.Language
+    }
+
+    @Bindable private var settings: AppSettings
+    @State private var turkishToEnglishInstalled = false
+    @State private var englishToTurkishInstalled = false
     @State private var isChecking = true
     @State private var downloadConfig: TranslationSession.Configuration?
+    @State private var downloadErrorMessage: String?
+
+    private let turkishToEnglishPack = LanguagePack(
+        title: "Turkish → English",
+        sourceLanguage: Locale.Language(identifier: "tr"),
+        targetLanguage: Locale.Language(identifier: "en")
+    )
+    private let englishToTurkishPack = LanguagePack(
+        title: "English → Turkish",
+        sourceLanguage: Locale.Language(identifier: "en"),
+        targetLanguage: Locale.Language(identifier: "tr")
+    )
+
+    init(settings: AppSettings) {
+        self.settings = settings
+    }
 
     var body: some View {
         Form {
@@ -43,9 +65,9 @@ struct SettingsView: View {
 
             // MARK: - Translation Backend
             Section {
-                Picker("Engine", selection: $settings.backend) {
-                    ForEach(TranslationBackend.allCases) { backend in
-                        Text(backend.label).tag(backend)
+                Picker("Engine", selection: $settings.translationMode) {
+                    ForEach(TranslationMode.allCases) { mode in
+                        Text(mode.label).tag(mode)
                     }
                 }
                 .labelsHidden()
@@ -53,10 +75,14 @@ struct SettingsView: View {
             } header: {
                 Text("Translation Backend")
             } footer: {
-                Text("Apple Translation runs on-device with high quality. MyMemory provides crowdsourced alternatives. Google Translate uses your own API key and adds a network-backed machine translation option.")
+                Text(
+                    "Apple Translation runs on-device with high quality. "
+                        + "MyMemory provides crowdsourced alternatives. "
+                        + "Google Translate uses your own API key and adds a network-backed machine translation option."
+                )
             }
 
-            if settings.backend.includesGoogle {
+            if settings.translationMode.requiresGoogleAPIKey {
                 Section {
                     SecureField("API key", text: $settings.googleAPIKey)
                         .textFieldStyle(.roundedBorder)
@@ -69,7 +95,10 @@ struct SettingsView: View {
                 } header: {
                     Text("Google Translate")
                 } footer: {
-                    Text("Create a Cloud Translation API key in Google Cloud Console and paste it here. The key is stored locally on this Mac.")
+                    Text(
+                        "Create a Cloud Translation API key in Google Cloud Console and paste it here. "
+                            + "The key is stored locally on this Mac."
+                    )
                 }
             }
 
@@ -86,20 +115,26 @@ struct SettingsView: View {
             Section {
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Turkish → English")
-                        statusLabel(installed: trEnInstalled)
+                        Text(turkishToEnglishPack.title)
+                        statusLabel(installed: turkishToEnglishInstalled)
                     }
                     Spacer()
-                    downloadButton(installed: trEnInstalled, source: "tr", target: "en")
+                    downloadButton(installed: turkishToEnglishInstalled, pack: turkishToEnglishPack)
                 }
 
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("English → Turkish")
-                        statusLabel(installed: enTrInstalled)
+                        Text(englishToTurkishPack.title)
+                        statusLabel(installed: englishToTurkishInstalled)
                     }
                     Spacer()
-                    downloadButton(installed: enTrInstalled, source: "en", target: "tr")
+                    downloadButton(installed: englishToTurkishInstalled, pack: englishToTurkishPack)
+                }
+
+                if let downloadErrorMessage {
+                    Label(downloadErrorMessage, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
                 }
             } header: {
                 Text("Language Packs")
@@ -109,7 +144,12 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .translationTask(downloadConfig) { session in
-            _ = try? await session.translate("hello")
+            do {
+                _ = try await session.translate("hello")
+                downloadErrorMessage = nil
+            } catch {
+                downloadErrorMessage = "Could not download the selected language pack: \(error.localizedDescription)"
+            }
             await refreshStatus()
         }
         .task {
@@ -139,12 +179,13 @@ struct SettingsView: View {
     }
 
     @ViewBuilder
-    private func downloadButton(installed: Bool, source: String, target: String) -> some View {
+    private func downloadButton(installed: Bool, pack: LanguagePack) -> some View {
         if !isChecking && !installed {
             Button("Download…") {
+                downloadErrorMessage = nil
                 downloadConfig = .init(
-                    source: Locale.Language(identifier: source),
-                    target: Locale.Language(identifier: target)
+                    source: pack.sourceLanguage,
+                    target: pack.targetLanguage
                 )
             }
         }
@@ -156,14 +197,17 @@ struct SettingsView: View {
     private func refreshStatus() async {
         isChecking = true
         let availability = LanguageAvailability()
-        let tr = Locale.Language(identifier: "tr")
-        let en = Locale.Language(identifier: "en")
+        let turkishToEnglishStatus = await availability.status(
+            from: turkishToEnglishPack.sourceLanguage,
+            to: turkishToEnglishPack.targetLanguage
+        )
+        let englishToTurkishStatus = await availability.status(
+            from: englishToTurkishPack.sourceLanguage,
+            to: englishToTurkishPack.targetLanguage
+        )
 
-        let s1 = await availability.status(from: tr, to: en)
-        let s2 = await availability.status(from: en, to: tr)
-
-        trEnInstalled = (s1 == .installed)
-        enTrInstalled = (s2 == .installed)
+        turkishToEnglishInstalled = (turkishToEnglishStatus == .installed)
+        englishToTurkishInstalled = (englishToTurkishStatus == .installed)
         isChecking = false
     }
 }

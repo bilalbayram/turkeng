@@ -41,7 +41,7 @@ struct TranslationPanelView: View {
             .padding(.horizontal, 20)
             .padding(.vertical, 16)
 
-            if !service.matches.isEmpty || service.isTranslating {
+            if !service.matches.isEmpty || service.isTranslating || service.statusMessage != nil {
                 Divider()
                     .padding(.horizontal, 16)
 
@@ -53,6 +53,17 @@ struct TranslationPanelView: View {
                         Text("Translating…")
                             .foregroundStyle(.secondary)
                             .font(.system(size: 16))
+                        Spacer()
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 14)
+                } else if let statusMessage = service.statusMessage {
+                    HStack {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                        Text(statusMessage)
+                            .foregroundStyle(.secondary)
+                            .font(.system(size: 15))
                         Spacer()
                     }
                     .padding(.horizontal, 20)
@@ -95,18 +106,8 @@ struct TranslationPanelView: View {
             service.selectPrevious()
             return .handled
         }
-        .translationTask(service.translationConfig) { session in
-            guard let text = service.pendingTranslationText else { return }
-            do {
-                let response = try await session.translate(text)
-                await MainActor.run {
-                    service.handleAppleResult(response.targetText, for: text)
-                }
-            } catch {
-                await MainActor.run {
-                    service.handleAppleFailure()
-                }
-            }
+        .translationTask(service.appleTranslationConfiguration) { session in
+            await service.performAppleTranslation(using: session)
         }
         .onChange(of: service.inputText) {
             if isLongInput && !expandedMode {
@@ -222,8 +223,11 @@ private struct ResultRow: View {
                     HStack(spacing: 8) {
                         if let hint = match.contextHint { hintBadge(hint) }
                         Spacer()
-                        if isCopied { copiedIcon }
-                        else if isSelected { copyLabel }
+                        if isCopied {
+                            copiedIcon
+                        } else if isSelected {
+                            copyLabel
+                        }
                         if !match.isPrimary { scoreBadge }
                     }
                 }
@@ -235,8 +239,11 @@ private struct ResultRow: View {
 
                     if let hint = match.contextHint { hintBadge(hint) }
                     Spacer()
-                    if isCopied { copiedIcon }
-                    else if isSelected { copyLabel }
+                    if isCopied {
+                        copiedIcon
+                    } else if isSelected {
+                        copyLabel
+                    }
                     if !match.isPrimary { scoreBadge }
                 }
             }

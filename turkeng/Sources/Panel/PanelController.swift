@@ -3,9 +3,16 @@ import SwiftUI
 
 final class PanelController {
     private var panel: FloatingPanel?
-    private let service = TranslationService()
+    private let service: TranslationService
     private var clickMonitor: Any?
     private var sizeObservation: NSKeyValueObservation?
+
+    init(settings: AppSettings) {
+        self.service = TranslationService(
+            settingsProvider: { settings.translationSettings },
+            clipboardWriter: PasteboardTranslationClipboardWriter()
+        )
+    }
 
     func toggle() {
         if let panel, panel.isVisible {
@@ -28,9 +35,12 @@ final class PanelController {
 
         // Center horizontally, position in upper third of screen
         let screenFrame = screen.visibleFrame
-        let x = screenFrame.midX - panelWidth / 2
-        let y = screenFrame.midY + screenFrame.height / 6
-        panel.setFrame(NSRect(x: x, y: y, width: panelWidth, height: panelHeight), display: true)
+        let panelOriginX = screenFrame.midX - panelWidth / 2
+        let panelOriginY = screenFrame.midY + screenFrame.height / 6
+        panel.setFrame(
+            NSRect(x: panelOriginX, y: panelOriginY, width: panelWidth, height: panelHeight),
+            display: true
+        )
 
         panel.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
@@ -69,7 +79,7 @@ final class PanelController {
             hostingView.topAnchor.constraint(equalTo: visualEffect.topAnchor),
             hostingView.bottomAnchor.constraint(equalTo: visualEffect.bottomAnchor),
             hostingView.leadingAnchor.constraint(equalTo: visualEffect.leadingAnchor),
-            hostingView.trailingAnchor.constraint(equalTo: visualEffect.trailingAnchor),
+            hostingView.trailingAnchor.constraint(equalTo: visualEffect.trailingAnchor)
         ])
 
         let rect = NSRect(x: 0, y: 0, width: 680, height: 60)
@@ -79,7 +89,7 @@ final class PanelController {
         }
 
         // KVO-observe intrinsic size changes to dynamically resize the panel
-        sizeObservation = hostingView.observe(\.intrinsicContentSize, options: [.new]) { [weak self] view, _ in
+        sizeObservation = hostingView.observe(\.intrinsicContentSize, options: [.new]) { [weak self] _, _ in
             DispatchQueue.main.async {
                 self?.adjustPanelSize()
             }

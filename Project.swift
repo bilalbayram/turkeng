@@ -11,20 +11,20 @@ let project = Project(
             deploymentTargets: .macOS("15.0"),
             infoPlist: .extendingDefault(with: [
                 "LSUIElement": .boolean(true),
-                "CFBundleShortVersionString": .string("$(MARKETING_VERSION)"),
+                "CFBundleShortVersionString": .string("$(MARKETING_VERSION)")
             ]),
             buildableFolders: [
                 "turkeng/Sources",
-                "turkeng/Resources",
+                "turkeng/Resources"
             ],
             entitlements: .file(path: "turkeng/turkeng.entitlements"),
             dependencies: [
-                .external(name: "HotKey"),
+                .external(name: "HotKey")
             ],
             settings: .settings(base: [
                 "CODE_SIGN_IDENTITY": "-",
                 "ENABLE_HARDENED_RUNTIME": "YES",
-                "MARKETING_VERSION": "1.3.3",
+                "MARKETING_VERSION": "1.3.3"
             ])
         ),
         .target(

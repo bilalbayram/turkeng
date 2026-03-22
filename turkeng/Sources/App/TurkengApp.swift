@@ -15,7 +15,7 @@ struct TurkengApp: App {
                 Text("Settings…")
             }
             Button("Check for Updates…") {
-                Task { await UpdateChecker.shared.checkForUpdates() }
+                Task { await appDelegate.checkForUpdates() }
             }
             Divider()
             Text("Version \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?")")
@@ -27,7 +27,7 @@ struct TurkengApp: App {
         }
 
         Settings {
-            SettingsView()
+            SettingsView(settings: settings)
         }
     }
 }

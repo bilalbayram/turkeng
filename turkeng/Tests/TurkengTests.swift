@@ -4,10 +4,14 @@ import Testing
 
 struct TurkengTests {
 
+    private func makeService() -> TranslationService {
+        TranslationService(settingsProvider: { .defaultValue })
+    }
+
     @Test
     @MainActor
     func inputChangeClearsVisibleMatchesWhileTranslating() {
-        let service = TranslationService()
+        let service = makeService()
         service.matches = [
             TranslationMatch(id: "1", translation: "eski sonuc", matchScore: 1.0, contextHint: nil, isPrimary: true)
         ]
@@ -27,7 +31,7 @@ struct TurkengTests {
 
     @Test
     func shortInputStillShowsGhostText() {
-        let service = TranslationService()
+        let service = makeService()
         service.inputText = "merh"
 
         #expect(service.computeGhostText() == "aba")
@@ -35,7 +39,7 @@ struct TurkengTests {
 
     @Test
     func longInputDisablesGhostText() {
-        let service = TranslationService()
+        let service = makeService()
         service.inputText = String(repeating: "a", count: 51)
 
         #expect(service.computeGhostText().isEmpty)
@@ -43,7 +47,7 @@ struct TurkengTests {
 
     @Test
     func multilineInputDisablesGhostText() {
-        let service = TranslationService()
+        let service = makeService()
         service.inputText = "merhaba\nnasilsin"
 
         #expect(service.computeGhostText().isEmpty)
@@ -51,21 +55,21 @@ struct TurkengTests {
 
     @Test
     func localDirectionDetectsTurkishInput() {
-        let service = TranslationService()
+        let service = makeService()
 
-        #expect(service.detectLocalDirection(for: "merhaba") == .turkishToEnglish)
+        #expect(service.detectDirectionUsingNaturalLanguage(for: "merhaba") == .turkishToEnglish)
     }
 
     @Test
     func localDirectionDetectsEnglishInput() {
-        let service = TranslationService()
+        let service = makeService()
 
-        #expect(service.detectLocalDirection(for: "hello") == .englishToTurkish)
+        #expect(service.detectDirectionUsingNaturalLanguage(for: "hello") == .englishToTurkish)
     }
 
     @Test
     func previewDirectionAppliesReverseOverrideWithoutChangingInput() {
-        let service = TranslationService()
+        let service = makeService()
         service.inputText = "merhaba"
         service.isDirectionReversed = true
 
@@ -76,7 +80,7 @@ struct TurkengTests {
     @Test
     @MainActor
     func resetClearsReverseOverride() {
-        let service = TranslationService()
+        let service = makeService()
         service.inputText = "merhaba"
         service.isDirectionReversed = true
 
@@ -90,7 +94,7 @@ struct TurkengTests {
     @Test
     @MainActor
     func emptyInputClearsReverseOverride() {
-        let service = TranslationService()
+        let service = makeService()
         service.inputText = ""
         service.isDirectionReversed = true
         service.currentDirection = .englishToTurkish

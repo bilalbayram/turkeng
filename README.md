@@ -42,7 +42,7 @@ turkeng supports Google Cloud Translation as an optional backend. To enable it:
 
 ## Development
 
-Built with Swift + SwiftUI, managed by [Tuist](https://tuist.io). Requires macOS 14.0+.
+Built with Swift + SwiftUI, managed by [Tuist](https://tuist.io). Requires macOS 15.0+.
 
 ```bash
 tuist install
