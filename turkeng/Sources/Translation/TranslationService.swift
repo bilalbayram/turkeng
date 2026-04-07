@@ -75,6 +75,11 @@ final class TranslationService {
 }
 
 extension TranslationService {
+    func replaceInput(with text: String) {
+        inputText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        onInputChanged()
+    }
+
     func onInputChanged() {
         debounceTask?.cancel()
         cancelActiveTranslation()

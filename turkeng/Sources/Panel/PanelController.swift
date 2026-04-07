@@ -7,6 +7,10 @@ final class PanelController {
     private var clickMonitor: Any?
     private var sizeObservation: NSKeyValueObservation?
 
+    var isVisible: Bool {
+        panel?.isVisible == true
+    }
+
     init(settings: AppSettings) {
         self.service = TranslationService(
             settingsProvider: { settings.translationSettings },
@@ -24,7 +28,16 @@ final class PanelController {
 
     func show() {
         service.reset()
+        presentPanel()
+    }
 
+    func show(with text: String) {
+        service.reset()
+        service.replaceInput(with: text)
+        presentPanel()
+    }
+
+    private func presentPanel() {
         let panel = ensurePanel()
         guard let screen = NSScreen.main else { return }
 

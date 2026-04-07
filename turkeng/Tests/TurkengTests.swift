@@ -30,6 +30,18 @@ struct TurkengTests {
     }
 
     @Test
+    @MainActor
+    func replaceInputTrimsSelectedTextAndStartsTranslation() {
+        let service = makeService()
+
+        service.replaceInput(with: "  merhaba  \n")
+
+        #expect(service.inputText == "merhaba")
+        #expect(service.currentDirection == .turkishToEnglish)
+        #expect(service.isTranslating)
+    }
+
+    @Test
     func shortInputStillShowsGhostText() {
         let service = makeService()
         service.inputText = "merh"

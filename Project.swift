@@ -11,7 +11,24 @@ let project = Project(
             deploymentTargets: .macOS("15.0"),
             infoPlist: .extendingDefault(with: [
                 "LSUIElement": .boolean(true),
-                "CFBundleShortVersionString": .string("$(MARKETING_VERSION)")
+                "CFBundleShortVersionString": .string("$(MARKETING_VERSION)"),
+                "NSServices": .array([
+                    .dictionary([
+                        "NSMenuItem": .dictionary([
+                            "default": .string("Translate with Turkeng")
+                        ]),
+                        "NSMessage": .string("translateSelection"),
+                        "NSPortName": .string("turkeng"),
+                        "NSRequiredContext": .dictionary([
+                            "NSServiceCategory": .string("public.text")
+                        ]),
+                        "NSRestricted": .boolean(false),
+                        "NSSendTypes": .array([
+                            .string("public.text"),
+                            .string("NSStringPboardType")
+                        ])
+                    ])
+                ])
             ]),
             buildableFolders: [
                 "turkeng/Sources",
@@ -24,7 +41,7 @@ let project = Project(
             settings: .settings(base: [
                 "CODE_SIGN_IDENTITY": "-",
                 "ENABLE_HARDENED_RUNTIME": "YES",
-                "MARKETING_VERSION": "1.3.3"
+                "MARKETING_VERSION": "1.3.4"
             ])
         ),
         .target(
